@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 # Configuración de la página
 st.set_page_config(
     page_title="Lab 11",
-    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -31,7 +30,7 @@ with tab1:
     # Botón de descarga
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button(
-        label="📥 Descargar CSV",
+        label="Descargar CSV",
         data=csv,
         file_name="datos.csv",
         mime="text/csv"
@@ -58,7 +57,7 @@ with tab2:
 
     # Sidebar para filtros
     st.sidebar.markdown("---")
-    st.sidebar.header("🔍 Filtros de Visualización")
+    st.sidebar.header("Filtros de Visualización")
     
     # Obtener años disponibles
     años_disponibles = sorted(importacion_clean_df['Año'].unique())
@@ -93,7 +92,7 @@ with tab2:
     )
 
     # Gráfico 1: Picos anuales
-    st.markdown("### 📊 Picos de importación anual por tipo de combustible")
+    st.markdown("### Picos de importación anual por tipo de combustible")
     
     # Filtrar datos según años seleccionados
     picos_filtrados = picos_por_anio[
@@ -118,12 +117,12 @@ with tab2:
         
         st.pyplot(fig1)
     else:
-        st.warning("⚠️ Selecciona al menos un tipo de combustible para visualizar.")
+        st.warning("Selecciona al menos un tipo de combustible para visualizar.")
     
     st.markdown("---")
     
     # Gráfico 2: Series temporales
-    st.markdown("### 📈 Comportamiento temporal de importaciones")
+    st.markdown("### Comportamiento temporal de importaciones")
     
     # Filtrar datos por rango de fechas
     fecha_inicio = f"{años_series[0]}-01-01"
@@ -148,9 +147,9 @@ with tab2:
         
         st.pyplot(fig2)
     elif not combustibles_seleccionados:
-        st.warning("⚠️ Selecciona al menos un tipo de combustible para visualizar.")
+        st.warning("Selecciona al menos un tipo de combustible para visualizar.")
     else:
-        st.error("❌ No hay datos disponibles para el rango de años seleccionado.")
+        st.error("No hay datos disponibles para el rango de años seleccionado.")
 
     
 # Footer
