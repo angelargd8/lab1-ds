@@ -13,14 +13,50 @@ st.set_page_config(
 )
 
 # Título principal
-st.title("Visualización de datos dinámicos")
+# st.title("Visualización de datos dinámicos")
 
+st.markdown(
+    """
+    <h2 style='text-align: center; color: #764B36 ;'>Visualización de datos dinámicos</h2>
+    
+    """,
+    
+
+    unsafe_allow_html=True
+    )
+
+st.markdown(
+    """
+    <style>
+    .stApp {
+        # background-color: #f5f7fa;
+        background: linear-gradient(180deg, #f5f7fa  0%, #EFE7DD  100%);
+        color: #222222;
+    }
+    /* Títulos */
+    h1, h2, h3 {
+        color: #764B36;
+        text-align: center;
+    }
+
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # Tabs
 tab1, tab2 = st.tabs(["Datos", "Visualización"])
 
 with tab1:
-    st.subheader("Tabla de Datos de Ejemplo")
+    # st.subheader("Tabla de Datos de Ejemplo")
+
+    st.markdown(
+    """
+    <h3 style='text-align: left; color: #764B36 ;'>Tabla de Datos de Ejemplo</h3>
+    """,
+    unsafe_allow_html=True
+    )
     
     # Generar datos de ejemplo
     df = pd.read_csv('./data/data_clean/importacion_clean_df.csv', parse_dates=['Fecha'], index_col='Fecha')
@@ -37,7 +73,14 @@ with tab1:
     )
 
 with tab2:
-    st.subheader("Visualizaciones Interactivas")
+    # st.subheader("Visualizaciones Interactivas")
+
+    st.markdown(
+    """
+    <h3 style='text-align: center; color: #764B36 ;'>Visualizaciones Interactivas</h3>
+    """,
+    unsafe_allow_html=True
+    )
     
     columnas_necesarias = [
         "Gasolina regular", "Gasolina superior", 
@@ -58,6 +101,37 @@ with tab2:
     # Sidebar para filtros
     st.sidebar.markdown("---")
     st.sidebar.header("Filtros de Visualización")
+
+    st.markdown(
+    """
+    <style>
+    /* Fondo general */
+
+    /* Sidebar personalizado */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #764B36 0%, #764B36 100%);
+        color: white;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+    }
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+   
+    """,
+    unsafe_allow_html=True
+)
+    
+    st.sidebar.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #D8A790;
+        color: #222222;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+    )
     
     # Obtener años disponibles
     años_disponibles = sorted(importacion_clean_df['Año'].unique())
@@ -72,6 +146,7 @@ with tab2:
         max_value=año_max,
         value=(año_min, año_max),
         key="picos"
+    
     )
     
     # Filtro para gráfico de series temporales
@@ -92,7 +167,14 @@ with tab2:
     )
 
     # Gráfico 1: Picos anuales
-    st.markdown("### Picos de importación anual por tipo de combustible")
+
+    st.markdown(
+    """
+    <h3 style='text-align: left; color: #764B36 ;'>Picos de importación anual por tipo de combustible</h3>
+    """,
+    unsafe_allow_html=True
+    )
+    # st.markdown("### ")
     
     # Filtrar datos según años seleccionados
     picos_filtrados = picos_por_anio[
@@ -122,7 +204,13 @@ with tab2:
     st.markdown("---")
     
     # Gráfico 2: Series temporales
-    st.markdown("### Comportamiento temporal de importaciones")
+    # st.markdown("### Comportamiento temporal de importaciones")
+    st.markdown(
+    """
+    <h3 style='text-align: left; color: #764B36 ;'>Comportamiento temporal de importaciones</h3>
+    """,
+    unsafe_allow_html=True
+    )
     
     # Filtrar datos por rango de fechas
     fecha_inicio = f"{años_series[0]}-01-01"
