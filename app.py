@@ -415,6 +415,18 @@ with tab2:
             """,
             unsafe_allow_html=True
         )
+        
+        st.markdown(
+            f"""
+            <p style='margin: -6px 0 10px 0; color:#5a4337;'>
+            Esta gráfica muestra la <b>serie real</b> (línea continua) y el <b>pronóstico de Prophet</b> (línea discontinua) para <b>{combustible}</b>.
+            Si activas la opción, también verás los <b>intervalos de confianza</b>.
+            La línea vertical punteada marca el <b>inicio de la predicción</b> (año {año_inicio_prediccion}).
+            Usa el selector inferior para hacer <i>zoom</i> por meses o ver todo el periodo.
+            </p>
+            """,
+            unsafe_allow_html=True
+        )
 
         # Serie y preparación para Prophet 
         serie = importacion_clean_df[combustible].dropna().asfreq('MS')
@@ -507,6 +519,18 @@ with tab2:
         """
         <h3 style='text-align: left; color: #764B36;'>Comparación de modelos (ARIMA vs Prophet vs Baseline)</h3>
         """, unsafe_allow_html=True
+    )
+
+    st.markdown(
+        f"""
+        <p style='margin: -6px 0 10px 0; color:#5a4337;'>
+        Comparamos <b>ARIMA</b>, <b>Prophet</b> y un <b>baseline estacional</b> (desfase 12) por <b>combustible</b>,
+        evaluando en el tramo de <b>prueba</b> desde <b>{año_inicio_prediccion}</b> hasta <b>{año_fin_forecast}</b>.
+        Las métricas reportadas son: <b>MAE</b>, <b>RMSE</b> y <b>MAPE</b> (menor es mejor).
+        El gráfico de barras usa la métrica que elijas en el panel lateral para facilitar la comparación visual.
+        </p>
+        """,
+        unsafe_allow_html=True
     )
 
     resultados = []  # acumularemos un renglon por (combustible, modelo)
