@@ -8,6 +8,44 @@ from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error
 import plotly.graph_objects as go
 from datetime import datetime
+from prophet import Prophet
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import numpy as np
+
+def compute_metrics(y_true, y_pred):
+    y_true = np.asarray(y_true, dtype=float).ravel()
+    y_pred = np.asarray(y_pred, dtype=float).ravel()
+    mask = np.isfinite(y_true) & np.isfinite(y_pred)
+    if not np.any(mask):
+        return {"MAE": np.nan, "RMSE": np.nan, "MAPE": np.nan}
+
+    y_true = y_true[mask]
+    y_pred = y_pred[mask]
+
+    mae = mean_absolute_error(y_true, y_pred)
+
+    try:
+        rmse = mean_squared_error(y_true, y_pred, squared=False)
+    except TypeError:
+        rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+
+    nonzero = y_true != 0
+    if np.any(nonzero):
+        mape = np.mean(np.abs((y_true[nonzero] - y_pred[nonzero]) / y_true[nonzero])) * 100
+    else:
+        mape = np.nan
+
+    return {"MAE": mae, "RMSE": rmse, "MAPE": mape}
+
+def naive_baseline(series, seasonal_lag=12):
+    """
+    Baseline estacional: pronostico = valor de hace 'seasonal_lag' meses.
+    Si no hay suficientes datos, usa naive lag=1.
+    """
+    if len(series) > seasonal_lag:
+        return series.shift(seasonal_lag)
+    else:
+        return series.shift(1)
 
 
 # Configuración de la página
@@ -315,6 +353,251 @@ with tab2:
         value=False,
         key="intervalo_confianza"
     )
+
+    # Sidebar - PROPHET
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Gráfico 7-9: Predicciones Prophet")
+
+    horizonte_meses = st.sidebar.slider(
+        "Meses a pronosticar (Prophet):",
+        min_value=3, max_value=36, value=12, step=3, key="h_prophet"
+    )
+
+    seasonality_mode = st.sidebar.selectbox(
+        "Modo de estacionalidad:",
+        options=["additive", "multiplicative"],
+        index=0, key="seasonality_mode"
+    )
+
+    cp_scale = st.sidebar.slider(
+        "Changepoint prior scale:",
+        min_value=0.01, max_value=0.5, value=0.1, step=0.01, key="cp_scale"
+    )
+
+    yearly_seasonality = st.sidebar.selectbox(
+        "Estacionalidad anual:",
+        options=[True, False, "auto"], index=0, key="yearly_seasonality"
+    )
+
+    weekly_seasonality = False
+    daily_seasonality = False
+
+    mostrar_intervalo_prophet = st.sidebar.checkbox(
+        "Mostrar intervalo de confianza (Prophet)",
+        value=True, key="ic_prophet"
+    )
+
+    # Sidebar - COMPARACION DE MODELOS
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Comparación de Modelos")
+
+    # Reutilizamos 'año_inicio_prediccion' y 'año_fin_forecast' del bloque ARIMA
+    combustibles_comparacion = st.sidebar.multiselect(
+        "Combustibles a comparar:",
+        options=columnas_necesarias,
+        default=columnas_necesarias,
+        key="combustibles_comparacion"
+    )
+
+    metrica_objetivo = st.sidebar.selectbox(
+        "Métrica para gráfico de barras:",
+        options=["MAE", "RMSE", "MAPE"],
+        index=0, key="metrica_bar"
+    )
+
+    # GRAFICOS 7-9: PROPHET
+
+    for combustible in combustibles_prediccion:
+        st.markdown(
+            f"""
+            <h3 style='text-align: left; color: #764B36;'>Predicción Prophet - {combustible}</h3>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Serie y preparación para Prophet 
+        serie = importacion_clean_df[combustible].dropna().asfreq('MS')
+        df_prophet = serie.reset_index().rename(columns={"Fecha": "ds", combustible: "y"})
+        df_prophet["ds"] = pd.to_datetime(df_prophet["ds"])
+
+        # Split según año_inicio_prediccion (igual a ARIMA para comparar “fair”)
+        cutoff = pd.to_datetime(f"{año_inicio_prediccion}-01-01")
+        train_p = df_prophet[df_prophet["ds"] < cutoff].copy()
+        test_p  = df_prophet[(df_prophet["ds"] >= cutoff) &
+                            (df_prophet["ds"] <= pd.to_datetime(f"{año_fin_forecast}-12-31"))].copy()
+
+        # Entrenamiento Prophet
+        m = Prophet(
+            yearly_seasonality=yearly_seasonality,
+            weekly_seasonality=weekly_seasonality,
+            daily_seasonality=daily_seasonality,
+            seasonality_mode=seasonality_mode,
+            changepoint_prior_scale=cp_scale
+        )
+        m.fit(train_p)
+
+        # Horizonte: para gráfica extendida usamos 'horizonte_meses'; para comparar usamos las fechas exactas de test
+        future = m.make_future_dataframe(periods=horizonte_meses, freq='MS')
+        fcst = m.predict(future)
+
+        # Curvas para la UI (serie real + pronóstico)
+        figp = go.Figure()
+        # Real completa
+        figp.add_trace(go.Scatter(
+            x=df_prophet["ds"], y=df_prophet["y"],
+            mode='lines', name='Serie real',
+            line=dict(width=2),
+            hovertemplate='<b>Fecha</b>: %{x}<br><b>Valor</b>: %{y:,.0f}<extra></extra>'
+        ))
+        # Pronóstico
+        figp.add_trace(go.Scatter(
+            x=fcst["ds"], y=fcst["yhat"],
+            mode='lines', name='Pronóstico',
+            line=dict(width=2, dash='dash'),
+            hovertemplate='<b>Fecha</b>: %{x}<br><b>Pronóstico</b>: %{y:,.0f}<extra></extra>'
+        ))
+
+        # Intervalo de confianza (opcional)
+        if mostrar_intervalo_prophet:
+            figp.add_trace(go.Scatter(
+                x=fcst["ds"], y=fcst["yhat_upper"],
+                mode='lines', name='IC Superior',
+                line=dict(width=0), showlegend=False, hoverinfo='skip'
+            ))
+            figp.add_trace(go.Scatter(
+                x=fcst["ds"], y=fcst["yhat_lower"],
+                mode='lines', name='IC Inferior',
+                line=dict(width=0),
+                fill='tonexty', fillcolor='rgba(31,119,180,0.15)',
+                showlegend=True,
+                hovertemplate='<b>IC</b>: [%{y:,.0f}]<extra></extra>'
+            ))
+
+        # Línea vertical inicio de predicción (igual que ARIMA)
+        figp.add_vline(
+            x=pd.to_datetime(f'{año_inicio_prediccion}-01-01').timestamp() * 1000,
+            line_dash="dot", line_color="grey",
+            annotation_text="Inicio de predicción", annotation_position="top"
+        )
+
+        figp.update_layout(
+            title=f"Predicción Prophet para {combustible} (horizonte: {horizonte_meses} meses)",
+            xaxis_title="Fecha", yaxis_title="Importaciones (Barriles)",
+            hovermode='x unified', template='plotly_white',
+            height=600, showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+
+        figp.update_xaxes(
+            rangeslider_visible=True,
+            rangeselector=dict(buttons=list([
+                dict(count=12, label="12m", step="month", stepmode="backward"),
+                dict(count=24, label="24m", step="month", stepmode="backward"),
+                dict(step="all", label="Todo")
+            ]))
+        )
+
+        st.plotly_chart(figp, use_container_width=True)
+
+
+    # TABLA: COMPARACIÓN DE MODELOS
+    st.markdown("---")
+    st.markdown(
+        """
+        <h3 style='text-align: left; color: #764B36;'>Comparación de modelos (ARIMA vs Prophet vs Baseline)</h3>
+        """, unsafe_allow_html=True
+    )
+
+    resultados = []  # acumularemos un renglon por (combustible, modelo)
+
+    for combustible in combustibles_comparacion:
+        # --- Datos & splits coherentes con ARIMA ---
+        serie = importacion_clean_df[combustible].dropna().asfreq('MS')
+        train = serie[:str(año_inicio_prediccion-1)]
+        test  = serie[str(año_inicio_prediccion):str(año_fin_forecast)]
+
+        if len(test) == 0 or len(train) == 0:
+            continue  # nada que comparar
+
+        modelos_config = {
+            'Diesel alto azufre': (2, 1, 5),
+            'Gasolina superior': (11, 1, 6),
+            'Gasolina regular': (6, 1, 12)
+        }
+
+        # --- ARIMA (reentrenamos rápido para comparación usando tus órdenes predefinidas) ---
+        order = modelos_config[combustible]
+        arima_model = ARIMA(train, order=order).fit()
+        arima_fc = arima_model.predict(start=test.index[0], end=test.index[-1], typ='levels')
+        arima_metrics = compute_metrics(test.values, arima_fc.values)
+        resultados.append({
+            "Combustible": combustible, "Modelo": "ARIMA",
+            **arima_metrics
+        })
+
+        # --- Prophet ---
+        df_p = serie.reset_index().rename(columns={"Fecha": "ds", combustible: "y"})
+        df_p["ds"] = pd.to_datetime(df_p["ds"])
+        cutoff = pd.to_datetime(f"{año_inicio_prediccion}-01-01")
+        train_p = df_p[df_p["ds"] < cutoff].copy()
+        test_p  = df_p[(df_p["ds"] >= cutoff) & (df_p["ds"] <= pd.to_datetime(f"{año_fin_forecast}-12-31"))].copy()
+
+        m = Prophet(
+            yearly_seasonality=yearly_seasonality,
+            weekly_seasonality=False,
+            daily_seasonality=False,
+            seasonality_mode=seasonality_mode,
+            changepoint_prior_scale=cp_scale
+        )
+        m.fit(train_p)
+        # Predecimos exactamente el rango de test
+        future_test = pd.DataFrame({"ds": test_p["ds"].values})
+        fc_prophet = m.predict(future_test)
+        prophet_metrics = compute_metrics(test_p["y"].values, fc_prophet["yhat"].values)
+        resultados.append({
+            "Combustible": combustible, "Modelo": "Prophet",
+            **prophet_metrics
+        })
+
+        # --- Baseline (ingenuo) ---
+        bl_series = naive_baseline(serie, seasonal_lag=12)
+        bl_pred = bl_series.loc[test.index]
+        # Si hay NaNs (por el shift), recorta al índice disponible
+        mask = (~test.isna()) & (~bl_pred.isna())
+        if mask.sum() > 0:
+            baseline_metrics = compute_metrics(test[mask].values, bl_pred[mask].values)
+            resultados.append({
+                "Combustible": combustible, "Modelo": "Baseline (Naive/Seasonal)",
+                **baseline_metrics
+            })
+
+    if len(resultados) > 0:
+        df_result = pd.DataFrame(resultados)
+        # Ordena columnas y formatea
+        df_result = df_result[["Combustible", "Modelo", "MAE", "RMSE", "MAPE"]].sort_values(
+            by=["Combustible", "MAE"]
+        )
+        st.dataframe(df_result.style.format({
+            "MAE": "{:,.0f}", "RMSE": "{:,.0f}", "MAPE": "{:,.2f}%"
+        }), use_container_width=True)
+
+        # Gráfico de barras por métrica seleccionada
+        fig_bar = px.bar(
+            df_result, x="Combustible", y=metrica_objetivo,
+            color="Modelo", barmode="group",
+            title=f"Comparación por {metrica_objetivo}",
+            labels={metrica_objetivo: metrica_objetivo, "Combustible": "Combustible"}
+        )
+        fig_bar.update_layout(
+            template='plotly_white',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            height=500
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.info("No hay suficientes datos para comparar con los parámetros seleccionados.")
+
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("Gráfico 6: Pandemia")
